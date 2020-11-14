@@ -3,7 +3,7 @@ use klystron::{
     runtime_3d::{launch, App},
     DrawType, Engine, FramePacket, Material, Mesh, Object, Vertex, 
 };
-use nalgebra::{Matrix4, Vector4};
+use nalgebra::{Matrix4, Vector4, Vector3};
 use std::fs;
 
 struct MyApp {
@@ -35,15 +35,20 @@ impl App for MyApp {
     }
 
     fn next_frame(&mut self, engine: &mut dyn Engine) -> Result<FramePacket> {
+        let scale = 2.;
+        let trans = 
+            Matrix4::new_translation(&Vector3::new(1., 1., -1.)) *
+                Matrix4::from_diagonal(&Vector4::new(scale, scale, scale, 1.));
+
         let top = Object {
             material: self.material,
             mesh: self.mesh,
-            transform: Matrix4::identity(),
+            transform: trans * Matrix4::identity(),
         };
         let bottom = Object {
             material: self.material,
             mesh: self.mesh,
-            transform: Matrix4::from_diagonal(&Vector4::new(1., -1., 1., 1.)),
+            transform: trans * Matrix4::from_diagonal(&Vector4::new(1., -1., 1., 1.)),
         };
 
         engine.update_time_value(self.time)?;
