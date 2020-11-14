@@ -35,7 +35,7 @@ impl App for MyApp {
     }
 
     fn next_frame(&mut self, engine: &mut dyn Engine) -> Result<FramePacket> {
-        let scale = 2.;
+        let scale = 200.;
         let trans = 
             Matrix4::new_translation(&Vector3::new(1., 1., -1.)) *
                 Matrix4::from_diagonal(&Vector4::new(scale, scale, scale, 1.));
