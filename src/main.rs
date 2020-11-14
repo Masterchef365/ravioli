@@ -1,9 +1,10 @@
 use anyhow::Result;
 use klystron::{
     runtime_3d::{launch, App},
-    DrawType, Engine, FramePacket, Material, Mesh, Object, Vertex, UNLIT_FRAG, UNLIT_VERT,
+    DrawType, Engine, FramePacket, Material, Mesh, Object, Vertex, 
 };
-use nalgebra::{Matrix4, Point3};
+use nalgebra::{Matrix4, Vector4};
+use std::fs;
 
 struct MyApp {
     material: Material,
@@ -17,9 +18,13 @@ impl App for MyApp {
     type Args = ();
 
     fn new(engine: &mut dyn Engine, _args: Self::Args) -> Result<Self> {
-        let material = engine.add_material(UNLIT_VERT, UNLIT_FRAG, DrawType::Triangles)?;
+        let material = engine.add_material(
+            &fs::read("./shaders/unlit.vert.spv")?, 
+            &fs::read("./shaders/unlit.frag.spv")?, 
+            DrawType::Triangles
+        )?;
 
-        let (vertices, indices) = ravioli(1., 1., 30);
+        let (vertices, indices) = ravioli(1., 1.8, 1.6, 30);
         let mesh = engine.add_mesh(&vertices, &indices)?;
 
         Ok(Self {
@@ -30,16 +35,21 @@ impl App for MyApp {
     }
 
     fn next_frame(&mut self, engine: &mut dyn Engine) -> Result<FramePacket> {
-        let transform = Matrix4::identity();
-        let object = Object {
+        let top = Object {
             material: self.material,
             mesh: self.mesh,
-            transform,
+            transform: Matrix4::identity(),
         };
+        let bottom = Object {
+            material: self.material,
+            mesh: self.mesh,
+            transform: Matrix4::from_diagonal(&Vector4::new(1., -1., 1., 1.)),
+        };
+
         engine.update_time_value(self.time)?;
         self.time += 0.01;
         Ok(FramePacket {
-            objects: vec![object],
+            objects: vec![top, bottom],
         })
     }
 }
@@ -49,7 +59,7 @@ fn main() -> Result<()> {
     launch::<MyApp>(vr, ())
 }
 
-fn ravioli(width: f32, height: f32, steps: usize) -> (Vec<Vertex>, Vec<u16>) {
+fn ravioli(width: f32, radius: f32, offset: f32, steps: usize) -> (Vec<Vertex>, Vec<u16>) {
     let mut vertices = Vec::with_capacity(steps * steps);
     let mut indices = Vec::with_capacity(vertices.len() * 2 * 3);
 
@@ -60,11 +70,10 @@ fn ravioli(width: f32, height: f32, steps: usize) -> (Vec<Vertex>, Vec<u16>) {
             let x = x * 2. - 1.;
             let z = z * 2. - 1.;
 
-            let radius = 1.;
             let r = x * x + z * z;
             let height = (radius * radius - r).sqrt();
             vertices.push(Vertex {
-                pos: [x * width, height, z * width],
+                pos: [x * width, height - offset, z * width],
                 //color: [x, z, 0.],
                 color: [x, z, 1. - x],
             });
