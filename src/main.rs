@@ -55,13 +55,18 @@ fn ravioli(width: f32, height: f32, steps: usize) -> (Vec<Vertex>, Vec<u16>) {
 
     for x in 0..steps {
         let x = x as f32 / steps as f32;
-        for y in 0..steps {
-            let y = y as f32 / steps as f32;
-            let height = x * y;
+        for z in 0..steps {
+            let z = z as f32 / steps as f32;
+            let x = x * 2. - 1.;
+            let z = z * 2. - 1.;
+
+            let radius = 1.;
+            let r = x * x + z * z;
+            let height = (radius * radius - r).sqrt();
             vertices.push(Vertex {
-                pos: [x * width, height, y * width],
-                //color: [x, y, 0.],
-                color: [x, y, 1. - x],
+                pos: [x * width, height, z * width],
+                //color: [x, z, 0.],
+                color: [x, z, 1. - x],
             });
         }
     }
