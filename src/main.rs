@@ -36,6 +36,7 @@ impl App for MyApp {
 
     fn next_frame(&mut self, engine: &mut dyn Engine) -> Result<FramePacket> {
         let scale = 200.;
+        //let scale = 1.;
         let trans = 
             Matrix4::new_translation(&Vector3::new(1., 1., -1.)) *
                 Matrix4::from_diagonal(&Vector4::new(scale, scale, scale, 1.));
@@ -80,7 +81,7 @@ fn ravioli(width: f32, radius: f32, offset: f32, steps: usize) -> (Vec<Vertex>, 
             vertices.push(Vertex {
                 pos: [x * width, height - offset, z * width],
                 //color: [x, z, 0.],
-                color: [x, z, 1. - x],
+                color: [x, z, height - offset],
             });
         }
     }
