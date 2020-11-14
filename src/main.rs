@@ -19,7 +19,7 @@ impl App for MyApp {
     fn new(engine: &mut dyn Engine, _args: Self::Args) -> Result<Self> {
         let material = engine.add_material(UNLIT_VERT, UNLIT_FRAG, DrawType::Triangles)?;
 
-        let (vertices, indices) = ravioli(1., 1., 10);
+        let (vertices, indices) = ravioli(1., 1., 30);
         let mesh = engine.add_mesh(&vertices, &indices)?;
 
         Ok(Self {
@@ -60,7 +60,8 @@ fn ravioli(width: f32, height: f32, steps: usize) -> (Vec<Vertex>, Vec<u16>) {
             let height = x * y;
             vertices.push(Vertex {
                 pos: [x * width, height, y * width],
-                color: [(x * 80.).cos(), y, 0.],
+                //color: [x, y, 0.],
+                color: [x, y, 1. - x],
             });
         }
     }
@@ -75,6 +76,8 @@ fn ravioli(width: f32, height: f32, steps: usize) -> (Vec<Vertex>, Vec<u16>) {
         let tr = i + 1;
         let bl = i + 0 + steps as u16;
         let br = i + 1 + steps as u16;
+
+        // Outside
         indices.push(tl);
         indices.push(tr);
         indices.push(bl);
@@ -82,6 +85,16 @@ fn ravioli(width: f32, height: f32, steps: usize) -> (Vec<Vertex>, Vec<u16>) {
         indices.push(bl);
         indices.push(tr);
         indices.push(br);
+
+        // Inside
+        indices.push(bl);
+        indices.push(tr);
+        indices.push(tl);
+
+        indices.push(br);
+        indices.push(tr);
+        indices.push(bl);
+
     }
 
     (vertices, indices)
