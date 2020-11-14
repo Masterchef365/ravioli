@@ -1,33 +1,98 @@
-use anyhow::Result;
+use anyhow::{format_err, Context, Result};
 use klystron::{
     runtime_3d::{launch, App},
-    DrawType, Engine, FramePacket, Material, Mesh, Object, Vertex, 
+    DrawType, Engine, FramePacket, Material, Mesh, Object, Vertex,
 };
-use nalgebra::{Matrix4, Vector4, Vector3};
+use nalgebra::{Matrix4, Vector3, Vector4};
+use notify::{watcher, DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
+use shaderc::{CompileOptions, Compiler, ShaderKind};
 use std::fs;
+use std::path::Path;
+use std::sync::mpsc::{channel, Receiver};
+use std::time::Duration;
 
 struct MyApp {
+    file_watcher: RecommendedWatcher,
+    file_watch_rx: Receiver<DebouncedEvent>,
     material: Material,
+    compiler: Compiler,
+    vert: Vec<u8>,
+    frag: Vec<u8>,
     mesh: Mesh,
     time: f32,
 }
 
+impl MyApp {
+    fn update_shader(&mut self, path: &Path, engine: &mut dyn Engine) -> Result<()> {
+        println!("GOT {:?}", path);
+        let vert = match path.extension().and_then(|v| v.to_str()) {
+            Some("vert") => true,
+            Some("frag") => false,
+            None | Some(_) => return Ok(()),
+        };
+
+        if path.file_stem().unwrap() != "unlit" {
+            return Ok(());
+        }
+
+        let source = fs::read_to_string(path)
+            .with_context(|| format_err!("File error loading {:?}", path))?;
+
+        let spv = self
+            .compiler
+            .compile_into_spirv(
+                &source,
+                if vert {
+                    ShaderKind::Vertex
+                } else {
+                    ShaderKind::Fragment
+                },
+                path.to_str().unwrap(),
+                "main",
+                None,
+            )
+            .context("Failed to compile shader")?;
+        let spv = spv.as_binary_u8().to_vec();
+
+        if vert {
+            self.vert = spv;
+        } else {
+            self.frag = spv;
+        }
+
+        engine.remove_material(self.material)?;
+        self.material = engine.add_material(&self.vert, &self.frag, DrawType::Triangles)?;
+
+        Ok(())
+    }
+}
+
 impl App for MyApp {
-    const NAME: &'static str = "MyApp";
+    const NAME: &'static str = "Ravioli";
 
     type Args = ();
 
     fn new(engine: &mut dyn Engine, _args: Self::Args) -> Result<Self> {
-        let material = engine.add_material(
-            &fs::read("./shaders/unlit.vert.spv")?, 
-            &fs::read("./shaders/unlit.frag.spv")?, 
-            DrawType::Triangles
-        )?;
+        let vert = fs::read("./shaders/unlit.vert.spv")?;
+        let frag = fs::read("./shaders/unlit.frag.spv")?;
+
+        let compiler = Compiler::new().context("Shaderc failed to create compiler")?;
+
+        let material = engine.add_material(&vert, &frag, DrawType::Triangles)?;
+
+        let (tx, file_watch_rx) = channel();
+        let mut file_watcher = watcher(tx, Duration::from_millis(500))?;
+        file_watcher.watch("./shaders", RecursiveMode::NonRecursive)?;
 
         let (vertices, indices) = ravioli(1., 1.8, 1.6, 30);
         let mesh = engine.add_mesh(&vertices, &indices)?;
 
         Ok(Self {
+            compiler,
+            vert,
+            frag,
+            file_watcher,
+            file_watch_rx,
             mesh,
             material,
             time: 0.0,
@@ -35,11 +100,19 @@ impl App for MyApp {
     }
 
     fn next_frame(&mut self, engine: &mut dyn Engine) -> Result<FramePacket> {
-        let scale = 200.;
-        //let scale = 1.;
-        let trans = 
-            Matrix4::new_translation(&Vector3::new(1., 1., -1.)) *
-                Matrix4::from_diagonal(&Vector4::new(scale, scale, scale, 1.));
+        match self.file_watch_rx.try_recv() {
+            Ok(DebouncedEvent::Create(p)) | Ok(DebouncedEvent::Write(p)) => {
+                if let Err(e) = self.update_shader(&p, engine) {
+                    println!("Shader compilation error: {:?}", e);
+                }
+            }
+            _ => (),
+        }
+
+        //let scale = 200.;
+        let scale = 1.;
+        let trans = Matrix4::new_translation(&Vector3::new(1., 1., -1.))
+            * Matrix4::from_diagonal(&Vector4::new(scale, scale, scale, 1.));
 
         let top = Object {
             material: self.material,
@@ -114,7 +187,6 @@ fn ravioli(width: f32, radius: f32, offset: f32, steps: usize) -> (Vec<Vertex>, 
         indices.push(br);
         indices.push(tr);
         indices.push(bl);
-
     }
 
     (vertices, indices)

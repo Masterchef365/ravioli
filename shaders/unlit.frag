@@ -17,7 +17,7 @@ const vec2 u_resolution = vec2(1.);
 
 void main() {
     vec2 st = gl_FragCoord.xy/u_resolution.xy;
-    vec3 color = vec3(st, fragCoord.z);
+    vec3 color = vec3(st, fragCoord.z) / 1.;
     gl_FragColor = vec4(color, 1.);
 }
  
